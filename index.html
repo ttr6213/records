@@ -14,13 +14,13 @@
 <title>軽音バンドアーカイブ 女子編</title>
 <style>
 :root{
-  --bg:#f6f4ef; --surface:#fffdf9; --surface2:#efe9dd; --text:#2b2620; --muted:#7a7264;
-  --border:#ddd5c4; --accent:#b23a6d; --accent-soft:#f9e3ec; --chip:#efe9dd;
+  --bg:#faf1f4; --surface:#fffafc; --surface2:#f5e2ea; --text:#332129; --muted:#8a6b76;
+  --border:#e6c9d4; --accent:#b23a6d; --accent-soft:#f9e3ec; --chip:#f5e2ea;
   --danger:#b3261e; --ok:#3d7a3d;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#1d1a16; --surface:#2a251f; --surface2:#352e26; --text:#ece5d8; --muted:#a89c88;
-    --border:#4a4234; --accent:#e58bb0; --accent-soft:#472a38; --chip:#352e26; --danger:#e06a5f; --ok:#7fb87f; }
+  :root{ --bg:#221419; --surface:#2f1c24; --surface2:#3f2632; --text:#f4e6ec; --muted:#b28f9d;
+    --border:#5a3a47; --accent:#e58bb0; --accent-soft:#472a38; --chip:#3f2632; --danger:#e06a5f; --ok:#7fb87f; }
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -408,7 +408,7 @@ function statsHTML(){
 
 /* ---------- データタブ ---------- */
 function dataHTML(){
-  return `<div class="notice">このアプリは<strong>女子のみ版</strong>です。JSONを読み込むときは、女性メンバーと、その人が入っているバンドだけが自動で反映されます（元のファイルは変更されません）。性別が未設定の人は反映されないので、元データでは女性全員に「女性」を入れておいてください。</div>
+  return `<div class="notice">このアプリは<strong>女子のみ版</strong>です。JSONを読み込むときは、女性メンバーだけが自動で反映されます（バンド・曲・ライブは反映されません。元のファイルは変更されません）。性別が未設定の人は反映されないので、元データでは女性全員に「女性」を入れておいてください。</div>
   <div class="notice">このアプリのデータは、この端末のこのブラウザ内にだけ保存されます。ブラウザのデータを消すと消えてしまうので、ときどき下のボタンで書き出し（バックアップ）を取ってください。</div>
   <div class="card"><h3>データ管理</h3>
     <div class="meta">バンド ${DB.bands.length}件／メンバー ${DB.people.length}人／ライブ ${DB.events.length}件</div>
@@ -472,27 +472,13 @@ function buildShareData(partnerName, selfName){
   return { partial:true, sharedFrom:selfName, sharedTo:partnerName, people, events, bands };
 }
 function filterGirlsData(d){
-  const femaleNames = new Set((d.people||[]).filter(p=>p.gender==="女性").map(p=>p.name));
   const people = (d.people||[]).filter(p=>p.gender==="女性").map(p=>clone(p));
-  const bands = (d.bands||[]).filter(b=>(b.members||[]).some(m=>femaleNames.has(m.name))).map(b=>clone(b));
-  return { people, bands };
+  return { people };
 }
 function mergeSharedData(d){
-  let addedPeople = 0, addedEvents = 0, addedBands = 0, updatedBands = 0;
+  let addedPeople = 0;
   (d.people||[]).forEach(p=>{ if(p.name !== d.sharedTo && !DB.people.some(x=>x.name===p.name)){ const np = clone(p); np.id = nextId("people"); DB.people.push(np); addedPeople++; } });
-  const evMap = {};
-  (d.events||[]).forEach(ev=>{
-    const ex = DB.events.find(x=>x.name===ev.name && x.startDate===ev.startDate);
-    if(ex){ evMap[ev.id] = ex.id; } else { const ne = clone(ev); ne.id = nextId("events"); DB.events.push(ne); evMap[ev.id] = ne.id; addedEvents++; }
-  });
-  (d.bands||[]).forEach(b=>{
-    const nb = clone(b);
-    (nb.appearances||[]).forEach(a=>{ if(evMap[a.eventId] != null) a.eventId = evMap[a.eventId]; });
-    const ex = DB.bands.find(x=>x.name===nb.name);
-    if(ex){ nb.id = ex.id; DB.bands[DB.bands.findIndex(x=>x.id===ex.id)] = nb; updatedBands++; }
-    else { nb.id = nextId("bands"); DB.bands.push(nb); addedBands++; }
-  });
-  return { addedPeople, addedEvents, addedBands, updatedBands };
+  return { addedPeople };
 }
 
 /* ---------- バンド編集 ---------- */
@@ -755,8 +741,8 @@ const App = {
     reader.onload = () => { try{
         const d = JSON.parse(reader.result);
         if(!d || !Array.isArray(d.people) || !Array.isArray(d.events) || !Array.isArray(d.bands)) throw new Error("bad format");
-        if(d.partial){ const f = filterGirlsData(d); const r = mergeSharedData(Object.assign({}, d, f)); saveDB(); view.tab = "bands"; view.bandId = null; render(); alert("共有データを取り込みました（女子のみ版のため女性だけを反映：バンド" + (r.addedBands + r.updatedBands) + "件／メンバー" + r.addedPeople + "人追加／ライブ" + r.addedEvents + "件追加）"); return; }
-        const f = filterGirlsData(d); DB = { people: f.people, events: d.events, bands: f.bands }; saveDB(); view = { tab:"bands", bandId:null, personId:null, eventId:null, query:"", statusFilter:"all", songQuery:"", peopleQuery:"", bandSort:"updated", peopleSort:"grade", songSort:"count" }; render(); alert("読み込みました（女子のみ版のため、女性メンバー" + f.people.length + "人／バンド" + f.bands.length + "件だけを反映しました）");
+        if(d.partial){ const f = filterGirlsData(d); const r = mergeSharedData(Object.assign({}, d, f)); saveDB(); view.tab = "people"; view.personId = null; render(); alert("共有データを取り込みました（女子のみ版：女性メンバー" + r.addedPeople + "人追加。バンド・曲・ライブは反映されません）"); return; }
+        const f = filterGirlsData(d); const r = mergeSharedData(Object.assign({}, d, f)); saveDB(); view.tab = "people"; view.personId = null; render(); alert("読み込みました（女子のみ版：女性メンバー" + r.addedPeople + "人追加。バンド・曲・ライブは反映されません）");
       }catch(e){ alert("読み込めませんでした（ファイル形式が違います）"); } };
     reader.readAsText(file); input.value = "";
   },
