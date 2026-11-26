@@ -441,6 +441,10 @@ function dataHTML(){
   <div class="card"><h3>初期データに戻す</h3>
     <div class="meta">最初の状態（バンド・メンバーは空、ライブのみ）に戻します。今の変更は失われます。</div>
     <div class="row" style="margin-top:10px"><button class="btn danger" onclick="App.resetAll()">初期データに戻す</button></div>
+  </div>
+  <div class="card"><h3>一括削除</h3>
+    <div class="meta">取り込みすぎたデータの整理用です。どちらも取り消せません。心配なときは先に「JSONで書き出す」でバックアップを取ってください。「バンドをすべて削除」は各バンドの曲・出演記録も一緒に消えます。「曲だけをすべて削除」はバンドとメンバーを残して、曲リストと出演曲を空にします。</div>
+    <div class="row" style="margin-top:10px"><button class="btn danger" onclick="App.deleteAllBands()">バンドをすべて削除</button><button class="btn danger" onclick="App.deleteAllSongs()">曲だけをすべて削除</button></div>
   </div>`;
 }
 function downloadFile(name, text, type){
@@ -770,6 +774,8 @@ const App = {
     });
     downloadFile("band-archive-girls-" + dateStamp() + ".csv", "\ufeff" + rows.join("\n"), "text/csv;charset=utf-8");
   },
+  deleteAllBands(){ if(!DB.bands.length){ alert("バンドがありません"); return; } if(!confirm("バンドをすべて（" + DB.bands.length + "件）削除しますか？各バンドの曲・出演記録も一緒に消えます。")) return; if(!confirm("本当に削除しますか？取り消せません。")) return; DB.bands = []; saveDB(); view.bandId = null; render(); alert("バンドをすべて削除しました"); },
+  deleteAllSongs(){ const n = DB.bands.reduce((a,b)=>a + (b.songs||[]).length + (b.appearances||[]).reduce((x,ap)=>x + (ap.songs||[]).length, 0), 0); if(!n){ alert("曲がありません"); return; } if(!confirm("曲をすべて（" + n + "曲）削除しますか？バンドとメンバーは残ります。")) return; if(!confirm("本当に削除しますか？取り消せません。")) return; DB.bands.forEach(b=>{ b.songs = []; (b.appearances||[]).forEach(ap=>{ ap.songs = []; }); b.updatedAt = new Date().toISOString(); }); saveDB(); render(); alert("曲をすべて削除しました"); },
   resetAll(){ if(!confirm("初期データに戻しますか？今の変更は失われます。")) return; if(!confirm("本当に戻しますか？")) return;
     DB = { people: clone(SEED_PEOPLE), events: clone(SEED_EVENTS), bands: clone(SEED_BANDS) }; saveDB(); view.tab = "bands"; view.bandId = null; render(); alert("初期データに戻しました"); }
 };
