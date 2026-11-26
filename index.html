@@ -505,6 +505,11 @@ function prepareDraft(band){
   (d.appearances||[]).forEach(a=>{ a.songsText = formatSongs(a.songs||[]); });
   return d;
 }
+function duplicateParts(members){
+  const owners = {};
+  (members||[]).filter(m=>m.name).forEach(m=>{ (m.parts||[]).forEach(p=>{ (owners[p] = owners[p] || []).push(m.name); }); });
+  return Object.keys(owners).filter(p=>owners[p].length > 1).map(p=>({ part: p, names: owners[p] }));
+}
 function memberRowsHTML(){
   const names = draftBand.members.map(m=>m.name).filter(Boolean);
   return draftBand.members.map((m,i)=>{
@@ -512,7 +517,7 @@ function memberRowsHTML(){
     const replacedOpts = [`<option value="">（なし）</option>`].concat(names.filter(n=>n!==m.name).map(n=>`<option value="${esc(n)}" ${m.replacedName===n?"selected":""}>${esc(n)}</option>`)).join("");
     return `<div class="memberrow">
       <div class="row"><input type="text" class="mr-name grow" list="peopleList" placeholder="名前" value="${esc(m.name)}"><button class="btn small danger" onclick="App.removeMemberRow(${i})">削除</button></div>
-      <div class="partchecks">${partPresets().map(p=>`<label><input type="checkbox" class="mr-part" value="${p}" ${(m.parts||[]).includes(p)?"checked":""}>${p}</label>`).join("")}</div>
+      <div class="partchecks">${partPresets().map(p=>{ const dis = !(m.parts||[]).includes(p) && draftBand.members.some((om,j)=>j!==i && (om.parts||[]).includes(p)); return `<label${dis?' style="opacity:.45"':""}><input type="checkbox" class="mr-part" value="${p}" ${(m.parts||[]).includes(p)?"checked":""}${dis?" disabled":""} onchange="App.partChanged()">${p}</label>`; }).join("")}</div>
       <input type="text" class="mr-extra" placeholder="その他のパート（、区切り）" value="${esc(extra)}">
       <div class="grid2">
         <div><label class="flabel">加入区分</label><select class="mr-join"><option value="founding" ${m.joinType!=="mid"?"selected":""}>結成メンバー</option><option value="mid" ${m.joinType==="mid"?"selected":""}>途中加入</option></select></div>
@@ -665,6 +670,7 @@ const App = {
   duplicateBand(id){ const b = bandById(id); if(!b) return; const c = clone(b); delete c.songsText; (c.appearances||[]).forEach(a=>delete a.songsText); c.id = nextId("bands"); c.name = b.name + "（コピー）"; c.updatedAt = new Date().toISOString(); DB.bands.push(c); saveDB(); App.openBand(c.id); },
   deleteBand(id){ const b = bandById(id); if(!b) return; if(!confirm("バンド「" + b.name + "」を削除しますか？")) return; DB.bands = DB.bands.filter(x=>x.id!==id); saveDB(); view.bandId = null; render(); },
   cancelBandEdit(){ draftBand = null; render(); },
+  partChanged(){ syncBandDraft(); refreshMemberBoxes(); },
   addPickedMember(id){ const p = DB.people.find(x=>x.id===id); if(!p) return; syncBandDraft(); if(draftBand.members.some(m=>m.name===p.name)) return; draftBand.members.push({ name:p.name, parts:[], gradeOverride:"", joinType:"founding", joinNote:"", hasLeft:false, leftNote:"", replacedName:"" }); refreshMemberBoxes(); },
   addMemberRow(){ syncBandDraft(); draftBand.members.push({ name:"", parts:[], gradeOverride:"", joinType:"founding", joinNote:"", hasLeft:false, leftNote:"", replacedName:"" }); refreshMemberBoxes(); },
   removeMemberRow(i){ syncBandDraft(); draftBand.members.splice(i,1); refreshMemberBoxes(); },
@@ -685,6 +691,8 @@ const App = {
     syncBandDraft();
     const d = draftBand;
     if(!d.name.trim()){ alert("バンド名を入力してください"); return; }
+    const dups = duplicateParts(d.members);
+    if(dups.length){ alert("パートが重複しています：" + dups.map(x=>x.part + "（" + x.names.join("・") + "）").join("、") + "。女子のみ版では同じパートを2人以上に付けられません。"); return; }
     const band = { name: d.name.trim(), bandType: d.bandType, copyArtist: d.copyArtist.trim(), status: d.status, period: d.period.trim(),
       myParts: d.myParts, memo: d.memo, songs: parseSongs(d.songsText),
       members: d.members.filter(m=>m.name),
