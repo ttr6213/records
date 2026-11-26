@@ -525,6 +525,18 @@ function memberRowsHTML(){
     </div>`;
   }).join("");
 }
+function memberPickerHTML(){
+  if(!DB.people.length) return `<div class="card"><h3>既存メンバーから追加</h3><div class="meta">登録済みのメンバーがいません。下の欄に名前を直接入力するか、先に「メンバー」タブで追加してください。</div></div>`;
+  const inBand = new Set(draftBand.members.map(m=>m.name).filter(Boolean));
+  const list = DB.people.filter(p=>!inBand.has(p.name)).sort((a,b)=> (a.enrollmentYear||9999)-(b.enrollmentYear||9999) || a.name.localeCompare(b.name,"ja"));
+  if(!list.length) return `<div class="card"><h3>既存メンバーから追加</h3><div class="meta">登録済みのメンバーは全員このバンドに入っています。</div></div>`;
+  return `<div class="card"><h3>既存メンバーから追加</h3><div class="meta">タップするとメンバー欄に加わります。パートは下のメンバー欄で設定してください。</div>` +
+    list.map(p=>`<div class="row" style="margin-top:8px"><span class="grow"><strong>${esc(p.name)}</strong> <span class="meta">${esc(personStatus(p))}${p.enrollmentYear?"／"+p.enrollmentYear+"年入学":""}</span></span><button class="btn small" onclick="App.addPickedMember(${p.id})">＋ 追加</button></div>`).join("") + `</div>`;
+}
+function refreshMemberBoxes(){
+  const mb = document.getElementById("membersBox"); if(mb) mb.innerHTML = memberRowsHTML();
+  const pb = document.getElementById("pickerBox"); if(pb) pb.innerHTML = memberPickerHTML();
+}
 function linkRowsHTML(links, cls){
   return (links||[]).map((l,i)=>`<div class="row"><input type="text" class="${cls}-label" placeholder="ラベル（任意）" value="${esc(l.label||"")}" style="flex:1 1 110px"><input type="text" class="${cls}-url grow" placeholder="URL" value="${esc(l.url||"")}"><button class="btn small danger" onclick="App.removeLinkRow(this,'${cls}')">削除</button></div>`).join("");
 }
@@ -557,6 +569,7 @@ function bandEditorHTML(){
     <label class="flabel">曲リスト（ライブ以外）― 1行に1曲「曲名／アーティスト／編成メモ」</label><textarea id="bf-songs">${esc(d.songsText||"")}</textarea>
   </div>
   <h2 class="sec">メンバー</h2>
+  <div id="pickerBox">${memberPickerHTML()}</div>
   <div id="membersBox">${memberRowsHTML()}</div>
   <div class="card"><label class="flabel">メンバー一括追加（1行に1人「名前（パート、パート）」）</label><textarea id="bf-bulk" placeholder="例：名前（ギター、ボーカル）"></textarea>
   <div class="row"><button class="btn" onclick="App.bulkAddMembers()">一括追加</button><button class="btn" onclick="App.addMemberRow()">＋ 1人追加</button></div></div>
@@ -652,8 +665,9 @@ const App = {
   duplicateBand(id){ const b = bandById(id); if(!b) return; const c = clone(b); delete c.songsText; (c.appearances||[]).forEach(a=>delete a.songsText); c.id = nextId("bands"); c.name = b.name + "（コピー）"; c.updatedAt = new Date().toISOString(); DB.bands.push(c); saveDB(); App.openBand(c.id); },
   deleteBand(id){ const b = bandById(id); if(!b) return; if(!confirm("バンド「" + b.name + "」を削除しますか？")) return; DB.bands = DB.bands.filter(x=>x.id!==id); saveDB(); view.bandId = null; render(); },
   cancelBandEdit(){ draftBand = null; render(); },
-  addMemberRow(){ syncBandDraft(); draftBand.members.push({ name:"", parts:[], gradeOverride:"", joinType:"founding", joinNote:"", hasLeft:false, leftNote:"", replacedName:"" }); document.getElementById("membersBox").innerHTML = memberRowsHTML(); },
-  removeMemberRow(i){ syncBandDraft(); draftBand.members.splice(i,1); document.getElementById("membersBox").innerHTML = memberRowsHTML(); },
+  addPickedMember(id){ const p = DB.people.find(x=>x.id===id); if(!p) return; syncBandDraft(); if(draftBand.members.some(m=>m.name===p.name)) return; draftBand.members.push({ name:p.name, parts:[], gradeOverride:"", joinType:"founding", joinNote:"", hasLeft:false, leftNote:"", replacedName:"" }); refreshMemberBoxes(); },
+  addMemberRow(){ syncBandDraft(); draftBand.members.push({ name:"", parts:[], gradeOverride:"", joinType:"founding", joinNote:"", hasLeft:false, leftNote:"", replacedName:"" }); refreshMemberBoxes(); },
+  removeMemberRow(i){ syncBandDraft(); draftBand.members.splice(i,1); refreshMemberBoxes(); },
   bulkAddMembers(){ syncBandDraft(); const text = document.getElementById("bf-bulk").value;
     text.split(/\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
       const m = line.match(/^(.*?)[（(]([^（）()]*)[）)]\s*$/);
@@ -661,7 +675,7 @@ const App = {
       const parts = m ? m[2].split(/[、,，・]/).map(x=>x.trim()).filter(Boolean) : [];
       draftBand.members.push({ name, parts, gradeOverride:"", joinType:"founding", joinNote:"", hasLeft:false, leftNote:"", replacedName:"" });
     });
-    document.getElementById("bf-bulk").value = ""; document.getElementById("membersBox").innerHTML = memberRowsHTML(); },
+    document.getElementById("bf-bulk").value = ""; refreshMemberBoxes(); },
   addAppearance(){ syncBandDraft(); draftBand.appearances.push({ eventId: DB.events.length ? DB.events[DB.events.length-1].id : null, songsText:"", links:[] }); document.getElementById("appsBox").innerHTML = appBlocksHTML(); },
   removeAppearance(j){ syncBandDraft(); draftBand.appearances.splice(j,1); document.getElementById("appsBox").innerHTML = appBlocksHTML(); },
   addAppLink(j){ syncBandDraft(); (draftBand.appearances[j].links = draftBand.appearances[j].links || []).push({ label:"", url:"" }); document.getElementById("appsBox").innerHTML = appBlocksHTML(); },
