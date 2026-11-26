@@ -753,7 +753,7 @@ const App = {
     saveDB(); draftEvent = null; view.tab = "events"; view.eventId = ev.id; render();
   },
   setSongQuery(v){ view.songQuery = v; const el = document.getElementById("songResults"); if(el) el.innerHTML = songResultsHTML(); },
-  exportJSON(){ downloadFile("band-archive-girls-" + dateStamp() + ".json", JSON.stringify(DB, null, 2), "application/json"); },
+  exportJSON(){ downloadFile("band-archive-girls-" + dateStamp() + ".json", JSON.stringify(Object.assign({}, DB, { settings: loadSettings() }), null, 2), "application/json"); },
   savePartPresets(){
     const lines = document.getElementById("set-parts").value.split(/\n/).map(x=>x.trim()).filter(Boolean);
     const s = loadSettings(); s.customParts = [...new Set(lines)]; try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){}
@@ -776,6 +776,7 @@ const App = {
     reader.onload = () => { try{
         const d = JSON.parse(reader.result);
         if(!d || !Array.isArray(d.people) || !Array.isArray(d.events) || !Array.isArray(d.bands)) throw new Error("bad format");
+        if(d.settings){ const s = loadSettings(); if(Array.isArray(d.settings.customParts) && d.settings.customParts.length) s.customParts = d.settings.customParts; if(typeof d.settings.ownerName === "string" && d.settings.ownerName) s.ownerName = d.settings.ownerName; try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){} }
         if(d.partial){ const f = filterGirlsData(d); const r = mergeSharedData(Object.assign({}, d, f)); saveDB(); view.tab = "people"; view.personId = null; render(); alert("共有データを取り込みました（女子のみ版：女性メンバー" + r.addedPeople + "人追加。バンド・曲・ライブは反映されません）"); return; }
         const f = filterGirlsData(d); const r = mergeSharedData(Object.assign({}, d, f)); saveDB(); view.tab = "people"; view.personId = null; render(); alert("読み込みました（女子のみ版：女性メンバー" + r.addedPeople + "人追加。バンド・曲・ライブは反映されません）");
       }catch(e){ alert("読み込めませんでした（ファイル形式が違います）"); } };
